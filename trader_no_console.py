@@ -1,16 +1,15 @@
+from ntpath import join
 from binance import Client
 import pandas as pd
 import binance_keys as bk
 import sqlite3 as sql
-from rich.console import Console
-from rich.theme import Theme
 from time import sleep
+from datetime import datetime
+import csv
+import os
 
 conn = sql.connect('crypto_trading.db')
 c = conn.cursor()
-
-customer_theme = Theme({'info':"bold green italic",'integer':'blue bold','pos_warning':'yellow bold italic','neg_warning':'red bold'})
-console = Console(color_system='auto',theme=customer_theme)
 
 client = Client(api_key=bk.API_KEY,api_secret=bk.SECRET_KEY)
 
@@ -18,6 +17,8 @@ postframe = pd.read_sql('SELECT * FROM position',conn)
 
 stop_loss_percentage = 0.03
 
+today = datetime.now().date()
+today = str(today).replace('-','')
 
 replace = ['(',')',',','./data/','csv','.']
 replace_number = ['(',')',',']
@@ -25,7 +26,7 @@ replace_number = ['(',')',',']
 def clean_up_sql_out(text,isnumber):
     if isnumber == 1:
         for s in replace_number:
-            text = str(text).replace(s,'')      
+            text = str(text).replace(s,'')
     else:
         for s in replace:
             text = str(text).replace(s,'')
@@ -34,6 +35,19 @@ def clean_up_sql_out(text,isnumber):
 def round_float(value):
     value = round(float(value),2)
     return value
+
+def write_to_file(log_file_name,text):
+    if not os.path.exists('logs'):
+        os.mkdir('logs')
+    file_path = os.path.join('logs',today)
+    if not os.path.exists(file_path):
+        os.mkdir(file_path)
+    file_name = os.path.join(file_path,log_file_name)
+    text = str(datetime.now()) + '||' + str(text)
+    with open(f'{file_name}', 'a', encoding='UTF8') as f:
+        writer = csv.writer(f)
+        writer.writerow([text])
+        f.close()
 
 def changepos(curr, buy=True):
     if buy:
@@ -86,9 +100,8 @@ def market_order(curr,qty,buy=True,binance_buy=False,price=float,trigger=str):
         order = f'INSERT INTO orders VALUES("{curr}",{qty},"{side}",{price},"{trigger}",NULL)'
     else:
         order = f'INSERT INTO orders VALUES("{curr}",{qty},"{side}",{price},"{trigger}",NULL)'
-        console.print(order)
         c.execute(order)
-    console.print(order)
+    write_to_file(f'{curr}',order)
 
 def get_buy_value(curr):
     c.execute(f'SELECT price FROM orders WHERE Currency = "{curr}" order by market_date desc LIMIT 1')
@@ -104,50 +117,50 @@ def trader(curr):
     applytechnicals(df)
     lastrow = df.iloc[-1]
     position = check_position(curr)
-    console.print(f'[info]Currency:[/info]{curr}')
-    console.print(f'[info]Position:[/info]{position}')
+    write_to_file(f'{curr}',f'Currency:{curr}')
+    write_to_file(f'{curr}',f'Position:{position}')
     if int(position) == 0:
-        console.print('[info]Looking for BUY[/info]')
+        write_to_file(f'{curr}','Looking for BUY')
         if lastrow.FastSMA > lastrow.SlowSMA:
-            console.print('[pos_warning]BUY Conditions MET[/pos_warning]')
+            write_to_file(f'{curr}','BUY Conditions MET')
             market_order(curr,qty,True,False,lastrow.Close,'buy')
             changepos(curr, buy=True)
             stop = float(lastrow.Close) - (float(lastrow.Close) * stop_loss_percentage)
             insert_stop_loss(curr,stop)
         else:
-            console.print('[pos_warning]BUY Conditions NOT MET YET[/pos_warning]')
-            console.print(f'[info]Close:[/info][integer]{float(lastrow.Close)}[/integer]')
-            console.print(f'[info]SMA Difference:[/info][integer]{round(lastrow.FastSMA - lastrow.SlowSMA,2)}[/integer] || Positive Triggers BUY')
-            console.print(f'[info]FastSMA:[/info][integer]{float(round(lastrow.FastSMA))}[/integer]') 
-            console.print(f'[info]SlowSMA:[/info][integer]{float(round(lastrow.SlowSMA,2))}[/integer]')
+            write_to_file(f'{curr}','BUY Conditions NOT MET YET')
+            write_to_file(f'{curr}',f'Close:{float(lastrow.Close)}')
+            write_to_file(f'{curr}',f'SMA Difference:{round(lastrow.FastSMA - lastrow.SlowSMA,2)} || Positive Triggers BUY')
+            write_to_file(f'{curr}',f'FastSMA:{float(round(lastrow.FastSMA))}') 
+            write_to_file(f'{curr}',f'SlowSMA:{float(round(lastrow.SlowSMA,2))}')
     else:
-        console.print('[info]Looking for SELL[/info]')
+        write_to_file(f'{curr}','Looking for SELL')
         buy_price = get_buy_value(curr)
         stop_loss = get_stop_loss(curr)
         stop_loss = float(stop_loss)
         stop_loss_current = lastrow.Close - (lastrow.Close * stop_loss_percentage)
-        console.print(f'[info]Buy Price:[/info][integer]{float(buy_price)}[/integer]')
-        console.print(f'[info]Strenght:[/info][integer]{float(round(float(lastrow.Close)-float(buy_price),2))}[/integer]')
-        console.print(f'[info]Close:[/info][integer]{float(lastrow.Close)}[/integer]')
-        console.print(f'[info]Stop Loss:[/info][integer]{float(round(stop_loss,2))}[/integer]')
-        console.print(f'[info]SMA Difference:[/info][integer]{round(lastrow.SlowSMA - lastrow.FastSMA,2)}[/integer] || Positive Triggers SELL')
-        console.print(f'[info]FastSMA:[/info][integer]{float(round(lastrow.FastSMA))}[/integer]') 
-        console.print(f'[info]SlowSMA:[/info][integer]{float(round(lastrow.SlowSMA,2))}[/integer]')
+        write_to_file(f'{curr}',f'Buy Price:{float(buy_price)}')
+        write_to_file(f'{curr}',f'Strenght:{float(round(float(lastrow.Close)-float(buy_price),2))}')
+        write_to_file(f'{curr}',f'Close:{float(lastrow.Close)}')
+        write_to_file(f'{curr}',f'Stop Loss:{float(round(stop_loss,2))}')
+        write_to_file(f'{curr}',f'SMA Difference:{round(lastrow.SlowSMA - lastrow.FastSMA,2)} || Positive Triggers SELL')
+        write_to_file(f'{curr}',f'FastSMA:{float(round(lastrow.FastSMA))}') 
+        write_to_file(f'{curr}',f'SlowSMA:{float(round(lastrow.SlowSMA,2))}')
         if float(stop_loss_current) > stop_loss:
-            console.print('[pos_warning]Increase STOP LOSS[/pos_warning]')
+            write_to_file(f'{curr}','Increase STOP LOSS')
             stop_loss = stop_loss_current
             update_stop_loss(curr,stop_loss)
         if lastrow.Close <= stop_loss:
-            console.print('[neg_warning]STOP LOSS TRIGGERED SALE[/neg_warning]')
+            write_to_file(f'{curr}','STOP LOSS TRIGGERED SALE')
             market_order(curr,qty,False,False,lastrow.Close,'stop')
             changepos(curr,buy=False)
         elif lastrow.SlowSMA > lastrow.FastSMA:
-            console.print('[neg_warning]SMA Triggered SELL[/neg_warning]')
+            write_to_file(f'{curr}','SMA Triggered SELL')
             market_order(curr,qty,False,False,lastrow.Close,'SMA')
             changepos(curr,buy=False)
 running=True
 while running:
     for coin in postframe.Currency:
         trader(coin)
-    console.print()
+    write_to_file(f'{coin}','')
     sleep(1)
