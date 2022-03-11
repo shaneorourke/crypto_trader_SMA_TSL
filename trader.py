@@ -65,7 +65,7 @@ def update_stop_loss(curr,stop):
     conn.commit()
 
 def insert_stop_loss(curr,stop):
-    c.execute(f'INSERT INTO trailing_stop_loss VALUES("{curr}",{stop},NULL)')
+    c.execute(f'INSERT INTO trailing_stop_loss VALUES("{curr}",{stop},"{datetime.now()}")')
     conn.commit()
 
 def gethourlydata(symbol):
@@ -89,9 +89,9 @@ def market_order(curr,qty,buy=True,binance_buy=False,price=float,trigger=str):
         side='SELL'
     if binance_buy:    
         order = client.create_order(symbol=curr,side=side,type='MARKET',quantity=qty)
-        order = f'INSERT INTO orders VALUES("{curr}",{qty},"{side}",{price},"{trigger}",NULL)'
+        order = f'INSERT INTO orders VALUES("{curr}",{qty},"{side}",{price},"{trigger}","{datetime.now()}")'
     else:
-        order = f'INSERT INTO orders VALUES("{curr}",{qty},"{side}",{price},"{trigger}",NULL)'
+        order = f'INSERT INTO orders VALUES("{curr}",{qty},"{side}",{price},"{trigger}","{datetime.now()}")'
         console.print(order)
         c.execute(order)
     console.print(order)
