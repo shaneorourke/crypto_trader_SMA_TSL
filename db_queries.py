@@ -22,7 +22,7 @@ result = c.fetchone()
 result = clean_up_sql_out(result,0)
 time_now = datetime.now()
 print(f'Last Update:{result}')
-print(f'Time Now:{time_now}')
+print(f'Time Now:{str(time_now)}')
 
 print()
 
@@ -39,3 +39,9 @@ c.execute('SELECT sum(case when market = "buy" then price else price*-1 end) as 
 result = c.fetchall()
 for row in result:
     print(f'Profit:{clean_up_sql_out(row,0)}')
+
+## Orders
+c.execute('SELECT * FROM orders')
+result = c.fetchall()
+for row in result:
+    print(f'Orders:{clean_up_sql_out(row,0)}')
