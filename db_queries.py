@@ -35,7 +35,7 @@ for row in result:
 print()
 
 ## Profitability
-c.execute('SELECT round(sum(case when market = "BUY" then price else price*-1 end),2) as profit FROM orders')
+c.execute('SELECT round(sum(case when market = "SELL" then price else price*-1 end),2) as profit FROM orders')
 result = c.fetchall()
 for row in result:
     print(f'Profit:{clean_up_sql_out(row,1)}')
