@@ -36,6 +36,11 @@ def round_float(value):
     value = round(float(value),2)
     return value
 
+def last_update():
+    c.execute(f'DELETE FROM last_update')
+    c.execute(f'INSERT INTO last_update VALUES("{datetime.now()}")')
+    conn.commit()
+
 def write_to_file(log_file_name,text):
     if not os.path.exists('logs'):
         os.mkdir('logs')
@@ -162,5 +167,6 @@ running=True
 while running:
     for coin in postframe.Currency:
         trader(coin)
+        last_update()
     write_to_file(f'{coin}','')
     sleep(1)

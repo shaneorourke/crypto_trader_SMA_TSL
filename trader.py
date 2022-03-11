@@ -5,6 +5,7 @@ import sqlite3 as sql
 from rich.console import Console
 from rich.theme import Theme
 from time import sleep
+from datetime import datetime
 
 conn = sql.connect('crypto_trading.db')
 c = conn.cursor()
@@ -34,6 +35,11 @@ def clean_up_sql_out(text,isnumber):
 def round_float(value):
     value = round(float(value),2)
     return value
+
+def last_update():
+    c.execute(f'DELETE FROM last_update')
+    c.execute(f'INSERT INTO last_update VALUES("{datetime.now()}")')
+    conn.commit()
 
 def changepos(curr, buy=True):
     if buy:
@@ -149,5 +155,6 @@ running=True
 while running:
     for coin in postframe.Currency:
         trader(coin)
+        last_update()
     console.print()
     sleep(1)
