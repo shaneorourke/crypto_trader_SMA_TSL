@@ -38,10 +38,10 @@ print()
 c.execute('SELECT sum(case when market = "buy" then price else price*-1 end) as profit FROM orders')
 result = c.fetchall()
 for row in result:
-    print(f'Profit:{clean_up_sql_out(row,0)}')
+    print(f'Profit:{clean_up_sql_out(row,1)}')
 
 ## Orders
 c.execute('SELECT * FROM orders')
 result = c.fetchall()
 for row in result:
-    print(f'Orders:{clean_up_sql_out(row,0)}')
+    print(f'Orders:{clean_up_sql_out(row,1)}')
