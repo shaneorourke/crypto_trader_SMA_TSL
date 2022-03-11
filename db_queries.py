@@ -40,8 +40,19 @@ result = c.fetchall()
 for row in result:
     print(f'Profit:{clean_up_sql_out(row,1)}')
 
+print()
+
 ## Orders
-c.execute('SELECT * FROM orders')
+c.execute('SELECT * FROM orders ORDER BY market_date DESC LIMIT 5')
 result = c.fetchall()
 for row in result:
     print(f'Orders:{clean_up_sql_out(row,1)}')
+
+print()
+
+## Stop Details
+
+c.execute('SELECT Currency, stop_price FROM trailing_stop_loss ORDER BY market_date DESC LIMIT 1')
+result = c.fetchall()
+for row in result:
+    print(f'Last Stop Price:{clean_up_sql_out(row,1)}')
