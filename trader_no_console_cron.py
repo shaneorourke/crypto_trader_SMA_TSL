@@ -139,15 +139,15 @@ def trader(curr):
     write_to_file(f'{curr}',f'Currency:{curr}')
     write_to_file(f'{curr}',f'Position:{position}')
     if get_last_order_sell_reason(curr) == 'stop':
-        write_to_file('[pos_warning]STOPPED WAITING FOR TRIGGER TO RESET[/pos_warning]')
+        write_to_file(f'{curr}',f'STOPPED WAITING FOR TRIGGER TO RESET')
         if lastrow.FastSMA > lastrow.SlowSMA:
             update_waiting_for_next_entry(curr,1)
-            write_to_file('[pos_warning]CONTINUING WAITING FOR TRIGGER TO RESET[/pos_warning]')
+            write_to_file(f'{curr}',f'CONTINUING WAITING FOR TRIGGER TO RESET')
         if not lastrow.FastSMA > lastrow.SlowSMA:
-            write_to_file('[pos_warning]WAITING TRIGGER RESET[/pos_warning]')
+            write_to_file(f'{curr}',f'WAITING TRIGGER RESET')
             update_waiting_for_next_entry(curr,0)
     waiting = waiting_for_next_entry(curr)
-    write_to_file(f'[pos_warning]WAITING:{waiting}[/pos_warning]')
+    write_to_file(f'{curr}',f'WAITING:{waiting}')
     if waiting == False or waiting == 'None':
         if int(position) == 0:
             write_to_file(f'{curr}','Looking for BUY')
