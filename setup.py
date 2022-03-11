@@ -5,7 +5,11 @@ c = conn.cursor()
 c.execute('CREATE TABLE IF NOT EXISTS position (Currency text, position boolean, quantity int)')
 conn.commit()
 
-c.execute('INSERT INTO position VALUES ("BTCUSDT",0,0.001)')
+c.execute('SELECT position FROM position WHERE Currency = "BTCUSDT"')
+result = c.fetchone()
+print(result)
+if result == None:
+    c.execute('INSERT OR REPLACE INTO position VALUES ("BTCUSDT",0,0.001)')
 conn.commit()
 
 c.execute('CREATE TABLE IF NOT EXISTS hourlydata ("Index" text, Time datetime, Open float, High float, Low float, Close float, FastSMA float, SlowSMA float)')
@@ -18,6 +22,9 @@ c.execute('CREATE TABLE IF NOT EXISTS trailing_stop_loss (Currency text, stop_pr
 conn.commit()
 
 c.execute('CREATE TABLE IF NOT EXISTS last_update (timestamp DEFAULT current_date)')
+conn.commit()
+
+c.execute('CREATE TABLE IF NOT EXISTS waiting_for_entry (Currency text, waiting boolean)')
 conn.commit()
 
 c.close()

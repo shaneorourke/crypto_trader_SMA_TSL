@@ -114,7 +114,21 @@ def get_buy_value(curr):
     result = clean_up_sql_out(result,1)
     return result
 
+def get_last_order_sell_reason(curr):
+    c.execute(f'SELECT trigger FROM orders WHERE Currency = "{curr}" order by market_date desc LIMIT 1')
+    result = c.fetchone()
+    result = clean_up_sql_out(result,0)
+    return result
 
+def waiting_for_next_entry(curr):
+    c.execute(f'SELECT waiting FROM waiting_for_entry WHERE Currency = "{curr}"')
+    result = c.fetchone()
+    result = clean_up_sql_out(result,1)
+    return result
+
+def update_waiting_for_next_entry(curr,waiting):
+    c.execute(f'UPDATE waiting_for_entry SET waiting = {waiting} WHERE Currency = "{curr}"')
+    conn.commit()
 
 def trader(curr):
     qty = postframe[postframe.Currency == curr].quantity.values[0]
@@ -124,45 +138,56 @@ def trader(curr):
     position = check_position(curr)
     write_to_file(f'{curr}',f'Currency:{curr}')
     write_to_file(f'{curr}',f'Position:{position}')
-    if int(position) == 0:
-        write_to_file(f'{curr}','Looking for BUY')
+    if get_last_order_sell_reason(curr) == 'stop':
+        write_to_file('[pos_warning]STOPPED WAITING FOR TRIGGER TO RESET[/pos_warning]')
         if lastrow.FastSMA > lastrow.SlowSMA:
-            write_to_file(f'{curr}','BUY Conditions MET')
-            market_order(curr,qty,True,False,lastrow.Close,'buy')
-            changepos(curr, buy=True)
-            stop = float(lastrow.Close) - (float(lastrow.Close) * stop_loss_percentage)
-            insert_stop_loss(curr,stop)
+            update_waiting_for_next_entry(curr,1)
+            write_to_file('[pos_warning]CONTINUING WAITING FOR TRIGGER TO RESET[/pos_warning]')
+        if not lastrow.FastSMA > lastrow.SlowSMA:
+            write_to_file('[pos_warning]WAITING TRIGGER RESET[/pos_warning]')
+            update_waiting_for_next_entry(curr,0)
+    waiting = waiting_for_next_entry(curr)
+    write_to_file(f'[pos_warning]WAITING:{waiting}[/pos_warning]')
+    if waiting == False or waiting == 'None':
+        if int(position) == 0:
+            write_to_file(f'{curr}','Looking for BUY')
+            if lastrow.FastSMA > lastrow.SlowSMA:
+                write_to_file(f'{curr}','BUY Conditions MET')
+                market_order(curr,qty,True,False,lastrow.Close,'buy')
+                changepos(curr, buy=True)
+                stop = float(lastrow.Close) - (float(lastrow.Close) * stop_loss_percentage)
+                insert_stop_loss(curr,stop)
+            else:
+                write_to_file(f'{curr}','BUY Conditions NOT MET YET')
+                write_to_file(f'{curr}',f'Close:{float(lastrow.Close)}')
+                write_to_file(f'{curr}',f'SMA Difference:{round(lastrow.FastSMA - lastrow.SlowSMA,2)} || Positive Triggers BUY')
+                write_to_file(f'{curr}',f'FastSMA:{float(round(lastrow.FastSMA))}') 
+                write_to_file(f'{curr}',f'SlowSMA:{float(round(lastrow.SlowSMA,2))}')
         else:
-            write_to_file(f'{curr}','BUY Conditions NOT MET YET')
+            write_to_file(f'{curr}','Looking for SELL')
+            buy_price = get_buy_value(curr)
+            stop_loss = get_stop_loss(curr)
+            stop_loss = float(stop_loss)
+            stop_loss_current = lastrow.Close - (lastrow.Close * stop_loss_percentage)
+            write_to_file(f'{curr}',f'Buy Price:{float(buy_price)}')
+            write_to_file(f'{curr}',f'Strenght:{float(round(float(lastrow.Close)-float(buy_price),2))}')
             write_to_file(f'{curr}',f'Close:{float(lastrow.Close)}')
-            write_to_file(f'{curr}',f'SMA Difference:{round(lastrow.FastSMA - lastrow.SlowSMA,2)} || Positive Triggers BUY')
+            write_to_file(f'{curr}',f'Stop Loss:{float(round(stop_loss,2))}')
+            write_to_file(f'{curr}',f'SMA Difference:{round(lastrow.SlowSMA - lastrow.FastSMA,2)} || Positive Triggers SELL')
             write_to_file(f'{curr}',f'FastSMA:{float(round(lastrow.FastSMA))}') 
             write_to_file(f'{curr}',f'SlowSMA:{float(round(lastrow.SlowSMA,2))}')
-    else:
-        write_to_file(f'{curr}','Looking for SELL')
-        buy_price = get_buy_value(curr)
-        stop_loss = get_stop_loss(curr)
-        stop_loss = float(stop_loss)
-        stop_loss_current = lastrow.Close - (lastrow.Close * stop_loss_percentage)
-        write_to_file(f'{curr}',f'Buy Price:{float(buy_price)}')
-        write_to_file(f'{curr}',f'Strenght:{float(round(float(lastrow.Close)-float(buy_price),2))}')
-        write_to_file(f'{curr}',f'Close:{float(lastrow.Close)}')
-        write_to_file(f'{curr}',f'Stop Loss:{float(round(stop_loss,2))}')
-        write_to_file(f'{curr}',f'SMA Difference:{round(lastrow.SlowSMA - lastrow.FastSMA,2)} || Positive Triggers SELL')
-        write_to_file(f'{curr}',f'FastSMA:{float(round(lastrow.FastSMA))}') 
-        write_to_file(f'{curr}',f'SlowSMA:{float(round(lastrow.SlowSMA,2))}')
-        if float(stop_loss_current) > stop_loss:
-            write_to_file(f'{curr}','Increase STOP LOSS')
-            stop_loss = stop_loss_current
-            update_stop_loss(curr,stop_loss)
-        if lastrow.Close <= stop_loss:
-            write_to_file(f'{curr}','STOP LOSS TRIGGERED SALE')
-            market_order(curr,qty,False,False,lastrow.Close,'stop')
-            changepos(curr,buy=False)
-        elif lastrow.SlowSMA > lastrow.FastSMA:
-            write_to_file(f'{curr}','SMA Triggered SELL')
-            market_order(curr,qty,False,False,lastrow.Close,'SMA')
-            changepos(curr,buy=False)
+            if float(stop_loss_current) > stop_loss:
+                write_to_file(f'{curr}','Increase STOP LOSS')
+                stop_loss = stop_loss_current
+                update_stop_loss(curr,stop_loss)
+            if lastrow.Close <= stop_loss:
+                write_to_file(f'{curr}','STOP LOSS TRIGGERED SALE')
+                market_order(curr,qty,False,False,lastrow.Close,'stop')
+                changepos(curr,buy=False)
+            elif lastrow.SlowSMA > lastrow.FastSMA:
+                write_to_file(f'{curr}','SMA Triggered SELL')
+                market_order(curr,qty,False,False,lastrow.Close,'SMA')
+                changepos(curr,buy=False)
 running=True
 while running:
     for coin in postframe.Currency:

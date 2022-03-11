@@ -1,3 +1,4 @@
+from cgitb import reset
 from binance import Client
 import pandas as pd
 import binance_keys as bk
@@ -102,6 +103,21 @@ def get_buy_value(curr):
     result = clean_up_sql_out(result,1)
     return result
 
+def get_last_order_sell_reason(curr):
+    c.execute(f'SELECT trigger FROM orders WHERE Currency = "{curr}" order by market_date desc LIMIT 1')
+    result = c.fetchone()
+    result = clean_up_sql_out(result,0)
+    return result
+
+def waiting_for_next_entry(curr):
+    c.execute(f'SELECT waiting FROM waiting_for_entry WHERE Currency = "{curr}"')
+    result = c.fetchone()
+    result = clean_up_sql_out(result,1)
+    return result
+
+def update_waiting_for_next_entry(curr,waiting):
+    c.execute(f'UPDATE waiting_for_entry SET waiting = {waiting} WHERE Currency = "{curr}"')
+    conn.commit()
 
 
 def trader(curr):
@@ -112,45 +128,56 @@ def trader(curr):
     position = check_position(curr)
     console.print(f'[info]Currency:[/info]{curr}')
     console.print(f'[info]Position:[/info]{position}')
-    if int(position) == 0:
-        console.print('[info]Looking for BUY[/info]')
+    if get_last_order_sell_reason(curr) == 'stop':
+        console.print('[pos_warning]STOPPED WAITING FOR TRIGGER TO RESET[/pos_warning]')
         if lastrow.FastSMA > lastrow.SlowSMA:
-            console.print('[pos_warning]BUY Conditions MET[/pos_warning]')
-            market_order(curr,qty,True,False,lastrow.Close,'buy')
-            changepos(curr, buy=True)
-            stop = float(lastrow.Close) - (float(lastrow.Close) * stop_loss_percentage)
-            insert_stop_loss(curr,stop)
+            update_waiting_for_next_entry(curr,1)
+            console.print('[pos_warning]CONTINUING WAITING FOR TRIGGER TO RESET[/pos_warning]')
+        if not lastrow.FastSMA > lastrow.SlowSMA:
+            console.print('[pos_warning]WAITING TRIGGER RESET[/pos_warning]')
+            update_waiting_for_next_entry(curr,0)
+    waiting = waiting_for_next_entry(curr)
+    console.print(f'[pos_warning]WAITING:{waiting}[/pos_warning]')
+    if waiting == False or waiting == 'None':
+        if int(position) == 0:
+            console.print('[info]Looking for BUY[/info]')
+            if lastrow.FastSMA > lastrow.SlowSMA:
+                console.print('[pos_warning]BUY Conditions MET[/pos_warning]')
+                market_order(curr,qty,True,False,lastrow.Close,'buy')
+                changepos(curr, buy=True)
+                stop = float(lastrow.Close) - (float(lastrow.Close) * stop_loss_percentage)
+                insert_stop_loss(curr,stop)
+            else:
+                console.print('[pos_warning]BUY Conditions NOT MET YET[/pos_warning]')
+                console.print(f'[info]Close:[/info][integer]{float(lastrow.Close)}[/integer]')
+                console.print(f'[info]SMA Difference:[/info][integer]{round(lastrow.FastSMA - lastrow.SlowSMA,2)}[/integer] || Positive Triggers BUY')
+                console.print(f'[info]FastSMA:[/info][integer]{float(round(lastrow.FastSMA))}[/integer]') 
+                console.print(f'[info]SlowSMA:[/info][integer]{float(round(lastrow.SlowSMA,2))}[/integer]')
         else:
-            console.print('[pos_warning]BUY Conditions NOT MET YET[/pos_warning]')
+            console.print('[info]Looking for SELL[/info]')
+            buy_price = get_buy_value(curr)
+            stop_loss = get_stop_loss(curr)
+            stop_loss = float(stop_loss)
+            stop_loss_current = lastrow.Close - (lastrow.Close * stop_loss_percentage)
+            console.print(f'[info]Buy Price:[/info][integer]{float(buy_price)}[/integer]')
+            console.print(f'[info]Strenght:[/info][integer]{float(round(float(lastrow.Close)-float(buy_price),2))}[/integer]')
             console.print(f'[info]Close:[/info][integer]{float(lastrow.Close)}[/integer]')
-            console.print(f'[info]SMA Difference:[/info][integer]{round(lastrow.FastSMA - lastrow.SlowSMA,2)}[/integer] || Positive Triggers BUY')
+            console.print(f'[info]Stop Loss:[/info][integer]{float(round(stop_loss,2))}[/integer]')
+            console.print(f'[info]SMA Difference:[/info][integer]{round(lastrow.SlowSMA - lastrow.FastSMA,2)}[/integer] || Positive Triggers SELL')
             console.print(f'[info]FastSMA:[/info][integer]{float(round(lastrow.FastSMA))}[/integer]') 
             console.print(f'[info]SlowSMA:[/info][integer]{float(round(lastrow.SlowSMA,2))}[/integer]')
-    else:
-        console.print('[info]Looking for SELL[/info]')
-        buy_price = get_buy_value(curr)
-        stop_loss = get_stop_loss(curr)
-        stop_loss = float(stop_loss)
-        stop_loss_current = lastrow.Close - (lastrow.Close * stop_loss_percentage)
-        console.print(f'[info]Buy Price:[/info][integer]{float(buy_price)}[/integer]')
-        console.print(f'[info]Strenght:[/info][integer]{float(round(float(lastrow.Close)-float(buy_price),2))}[/integer]')
-        console.print(f'[info]Close:[/info][integer]{float(lastrow.Close)}[/integer]')
-        console.print(f'[info]Stop Loss:[/info][integer]{float(round(stop_loss,2))}[/integer]')
-        console.print(f'[info]SMA Difference:[/info][integer]{round(lastrow.SlowSMA - lastrow.FastSMA,2)}[/integer] || Positive Triggers SELL')
-        console.print(f'[info]FastSMA:[/info][integer]{float(round(lastrow.FastSMA))}[/integer]') 
-        console.print(f'[info]SlowSMA:[/info][integer]{float(round(lastrow.SlowSMA,2))}[/integer]')
-        if float(stop_loss_current) > stop_loss:
-            console.print('[pos_warning]Increase STOP LOSS[/pos_warning]')
-            stop_loss = stop_loss_current
-            update_stop_loss(curr,stop_loss)
-        if lastrow.Close <= stop_loss:
-            console.print('[neg_warning]STOP LOSS TRIGGERED SALE[/neg_warning]')
-            market_order(curr,qty,False,False,lastrow.Close,'stop')
-            changepos(curr,buy=False)
-        elif lastrow.SlowSMA > lastrow.FastSMA:
-            console.print('[neg_warning]SMA Triggered SELL[/neg_warning]')
-            market_order(curr,qty,False,False,lastrow.Close,'SMA')
-            changepos(curr,buy=False)
+            if float(stop_loss_current) > stop_loss:
+                console.print('[pos_warning]Increase STOP LOSS[/pos_warning]')
+                stop_loss = stop_loss_current
+                update_stop_loss(curr,stop_loss)
+            if lastrow.Close <= stop_loss:
+                console.print('[neg_warning]STOP LOSS TRIGGERED SALE[/neg_warning]')
+                market_order(curr,qty,False,False,lastrow.Close,'stop')
+                changepos(curr,buy=False)
+            elif lastrow.SlowSMA > lastrow.FastSMA:
+                console.print('[neg_warning]SMA Triggered SELL[/neg_warning]')
+                market_order(curr,qty,False,False,lastrow.Close,'SMA')
+                changepos(curr,buy=False)
 running=True
 while running:
     for coin in postframe.Currency:
