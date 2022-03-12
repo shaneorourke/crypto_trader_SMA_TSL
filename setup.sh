@@ -2,7 +2,9 @@
 
 chmod +x run_trader_cron.sh &&
 chmod +x run_trader.sh &&
+chmod +x db_queries.sh &&
 python3 -m venv trader &&
 source trader/bin/activate &&
 pip install -r requirements.txt &&
-deactivate 
+python setup.py &&
+deactivate
