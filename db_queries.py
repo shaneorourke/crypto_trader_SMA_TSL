@@ -1,15 +1,16 @@
 import sqlite3 as sql
 from datetime import datetime
-from symtable import Symbol
 from binance import Client
 import binance_keys as bk
+
+
 conn = sql.connect('crypto_trading.db')
 c = conn.cursor()
 
 client = Client(api_key=bk.API_KEY,api_secret=bk.SECRET_KEY)
 
-replace = ['(',')',',','./data/','csv','.']
-replace_number = ['(',')',',']
+replace = ['(',')',',','./data/','csv','.','[',']']
+replace_number = ['(',')',',','[',']']
 
 def clean_up_sql_out(text,isnumber):
     if isnumber == 1:
@@ -40,21 +41,35 @@ for curr in currencies:
 
     print(f'##### CURRENCY:{curr}')
 
+    ## Last Buy Price
+    c.execute(f'SELECT price FROM orders WHERE Currency="{curr}" and market = "BUY" ORDER BY market_date DESC limit 1')
+    buy_price = c.fetchall()
+    buy_price = clean_up_sql_out(buy_price,1)
+
     ## Position Open
     c.execute(f'SELECT position FROM position WHERE Currency="{curr}"')
     result = c.fetchall()
-    for row in result:
-        row = clean_up_sql_out(row,0)
-        if row == 0:
-            position = 'BUYING'
-        else:
-            position = 'SELLING'
-        print(f'Position:{position}')
+    pos = clean_up_sql_out(result,0)
+    if pos == 0:
+        position = 'BUYING'
+    else:
+        position = 'SELLING'
+    print(f'Position:{position}')
+    if position == 'SELLING':
+        print(f'Buy Price:{buy_price}')
+
+    ## Current Price
+    price=client.get_symbol_ticker(symbol=curr)
+    print(f'Current Price:{float(price["price"])}')
 
     ## Profitability
-    c.execute(f'SELECT round(sum(case when market = "SELL" then price else price*-1 end),2) as profit FROM orders WHERE Currency="{curr}"')
+    c.execute(f"""with last_order as (select market, market_date from orders WHERE Currency="{curr}" ORDER BY market_date DESC LIMIT 1)
+                , order_check as(select case when market = 'BUY' then (SELECT round(sum(case when market = "SELL" then price else price*-1 end),2) as profit FROM orders WHERE Currency="{curr}" and market_date != (SELECT market_date FROM last_order)) else (SELECT round(sum(case when market = "SELL" then price else price*-1 end),2) as profit FROM orders WHERE Currency="{curr}") end FROM last_order)
+                select * from order_check""")
     result = c.fetchall()
-    print(f'Profit:{clean_up_sql_out(result,1)}')
+    curr_profit = clean_up_sql_out(result,1)
+    profit = round((float(curr_profit)/float(price['price']))*100,2)
+    print(f'Profit Percentage:{profit}%')
 
     ## Stop Details
     c.execute('SELECT round(stop_price,2) FROM trailing_stop_loss ORDER BY market_date DESC LIMIT 1')
@@ -66,19 +81,20 @@ for curr in currencies:
     result = c.fetchall()
     print(f'Original Stop Est:{clean_up_sql_out(result,1)}')
 
-    price=client.get_symbol_ticker(symbol=curr)
-    print(f'Current Price:{float(price["price"])}')
-
 
     ## Orders
-    c.execute(f'SELECT * FROM orders WHERE Currency="{curr}" ORDER BY market_date DESC LIMIT 5')
-    result = c.fetchall()
-    for row in result:
-        print(f'Orders:{clean_up_sql_out(row,1)}')
+    #c.execute(f'SELECT * FROM orders WHERE Currency="{curr}" ORDER BY market_date DESC LIMIT 5')
+    #result = c.fetchall()
+    #for row in result:
+    #    print(f'Orders:{clean_up_sql_out(row,1)}')
 
 
     print()
-    ## Profitability
-    c.execute(f'SELECT round(sum(case when market = "SELL" then price else price*-1 end),2) as profit FROM orders')
-    result = c.fetchall()
-    print(f'##### Total Profit Percentage:{clean_up_sql_out(result,1)}')
+## Profitability
+c.execute(f"""with last_order as (select market, market_date from orders ORDER BY market_date DESC LIMIT 1)
+            , order_check as(select case when market = 'BUY' then (SELECT round(sum(case when market = "SELL" then price else price*-1 end),2) as profit FROM orders WHERE market_date != (SELECT market_date FROM last_order)) else (SELECT round(sum(case when market = "SELL" then price else price*-1 end),2) as profit FROM orders) end FROM last_order)
+            select * from order_check""")
+result = c.fetchall()
+tot_profit = clean_up_sql_out(result,1)
+total_profit = round((float(curr_profit)/float(price['price']))*100,2)
+print(f'##### Total Profit Percentage:{total_profit}%')

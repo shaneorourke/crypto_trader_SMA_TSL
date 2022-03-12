@@ -21,8 +21,8 @@ postframe = pd.read_sql('SELECT * FROM position',conn)
 stop_loss_percentage = 0.03
 
 
-replace = ['(',')',',','./data/','csv','.']
-replace_number = ['(',')',',']
+replace = ['(',')',',','./data/','csv','.','[',']']
+replace_number = ['(',')',',','[',']']
 
 def clean_up_sql_out(text,isnumber):
     if isnumber == 1:

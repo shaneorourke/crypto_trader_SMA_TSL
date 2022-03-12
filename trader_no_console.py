@@ -20,8 +20,8 @@ stop_loss_percentage = 0.03
 today = datetime.now().date()
 today = str(today).replace('-','')
 
-replace = ['(',')',',','./data/','csv','.']
-replace_number = ['(',')',',']
+replace = ['(',')',',','./data/','csv','.','[',']']
+replace_number = ['(',')',',','[',']']
 
 def clean_up_sql_out(text,isnumber):
     if isnumber == 1:
