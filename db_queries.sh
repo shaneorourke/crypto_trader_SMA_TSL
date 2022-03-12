@@ -1,3 +1,3 @@
 #!/bin/bash
-source /home/shane/Documents/python/crpyto_trading_simulator/trader/bin/activate &&
+source /home/pi/Documents/git/crypto_trader_SMA_TSL/trader/bin/activate &&
 python db_queries.py
